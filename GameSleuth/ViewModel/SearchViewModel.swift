@@ -1,0 +1,9 @@
+//
+//  SearchViewModel.swift
+//  GameSleuth
+//
+//  Created by user273623 on 4/13/25.
+//
+
+
+import Foundationimport Combineclass SearchViewModel: ObservableObject {    // Published properties for search term and results    @Published var searchTerm: String = ""    @Published var results: [Game] = []    @Published var isLoading = false    @Published var errorMessage: String?    // Cache dictionary to store results from previous searches.    // Key: lowercased search term, Value: list of games    private var cache: [String: [Game]] = [:]        // A cancellable to manage the debounce publisher    private var cancellable: AnyCancellable?        init() {        // Set up a Combine pipeline to debounce user input.        cancellable = $searchTerm            .removeDuplicates()            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)            .sink { [weak self] term in                self?.fetchGames(for: term)            }    }        func fetchGames(for term: String) {        // Clear results if the search term is empty.        guard !term.isEmpty else {            self.results = []            return        }                // Check cache first.        let lowercasedTerm = term.lowercased()        if let cachedResults = cache[lowercasedTerm] {            self.results = cachedResults            return        }                self.isLoading = true        APIService.shared.searchGames(withTitle: term) { [weak self] result in            DispatchQueue.main.async {                self?.isLoading = false                switch result {                case .success(let games):                    self?.results = games                    // Cache the result for reuse.                    self?.cache[lowercasedTerm] = games                case .failure(let error):                    self?.errorMessage = error.localizedDescription                }            }        }    }}
